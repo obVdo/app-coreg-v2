@@ -22,4 +22,4 @@ singularity exec \
   --pwd `pwd` \
   -B `pwd`/license.txt:/usr/local/freesurfer/license.txt \
   docker://brainlife/mne-freesurfer:7.3.2-1.2.1 \
-  python3 main.py
+  xvfb-run -a python3 main.py
