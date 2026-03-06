@@ -1,35 +1,26 @@
 #!/bin/bash
-#PBS -l nodes=1:ppn=1
-#PBS -l walltime=01:00:00
-#PBS -l vmem=16gb
+#PBS -l nodes=1:ppn=1,vmem=16gb,walltime=01:00:00
+#PBS -N bl.coreg
 
-#SBATCH --job-name=bl_mne_coreg
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem=16G
 #SBATCH --time=01:00:00
 
-set -x
 set -e
+set -x
 
-mkdir -p out_dir
-mkdir -p out_figs
-mkdir -p out_report
+module load proxy
 
-export PYVISTA_OFF_SCREEN=true
-export MNE_3D_BACKEND=pyvistaqt
-export MPLBACKEND=Agg
-export XDG_RUNTIME_DIR=/tmp/runtime-root
-mkdir -p /tmp/runtime-root
-
-if [ -f /usr/bin/singularity ]; then
-    SIF=/tmp/app-source-recon.sif
-    for i in 1 2 3; do
-        singularity pull --force $SIF docker://aunnikri642/app-freesurfer-mne-source-recon && break
-        echo "Pull attempt $i failed, retrying in 60s..."
-        sleep 60
-    done
-    singularity exec $SIF \
-        xvfb-run -a -s '-screen 0 1024x768x24 +extension GLX +render' python3 main.py
+if [ -n "$FREESURFER_LICENSE" ]; then
+    echo $FREESURFER_LICENSE > license.txt
+elif [ -n "$FS_LICENSE" ] && [ -f "$FS_LICENSE" ]; then
+    cp "$FS_LICENSE" license.txt
 else
-    xvfb-run -a python3 main.py
+    echo "Please set FREESURFER_LICENSE or FS_LICENSE in resource environment" && exit 1
 fi
+
+singularity exec \
+  --pwd `pwd` \
+  -B `pwd`/license.txt:/usr/local/freesurfer/license.txt \
+  docker://brainlife/mne-freesurfer:7.3.2-1.2.1 \
+  python3 main.py
