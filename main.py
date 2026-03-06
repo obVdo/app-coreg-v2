@@ -210,10 +210,14 @@ def _save_alignment_fig(step_name, label, add_to_product=False):
 
 
 # == COREGISTRATION ==
-fiducials = config.get('fiducials') or 'estimated'
+fiducials = config.get('fiducials') or 'auto'
 
 try:
-    coreg = mne.coreg.Coregistration(info, subject, subjects_dir, fiducials=fiducials)
+    coreg = mne.coreg.Coregistration(
+        info, subject, subjects_dir,
+        fiducials=fiducials,
+        on_defects='warn'  # don't crash on minor surface defects
+    )
 except Exception as e:
     add_info_to_product(report_items, f"FATAL: Could not initialise coregistration: {e}", "error")
     create_product_json(report_items)
