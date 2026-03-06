@@ -127,6 +127,18 @@ if not os.path.isdir(os.path.join(subjects_dir, subject)):
 
 add_info_to_product(report_items, f"Subject: {subject}", "info")
 
+# == MAKE SCALP SURFACES (required for 3D alignment plots) ==
+# Creates head-dense.fif in the FreeSurfer subject's bem/ directory.
+# Requires FreeSurfer binaries (mkheadsurf). Skipped gracefully if unavailable.
+try:
+    mne.bem.make_scalp_surfaces(subject, subjects_dir=subjects_dir,
+                                force=True, overwrite=True, no_decimate=True,
+                                verbose=True)
+    add_info_to_product(report_items, "Scalp surface created (head-dense)", "info")
+except Exception as e:
+    add_info_to_product(report_items,
+                        f"Scalp surface generation skipped (no FreeSurfer?): {e}", "warning")
+
 # == CHECK DIGITIZATION POINTS ==
 if not info['dig']:
     add_info_to_product(

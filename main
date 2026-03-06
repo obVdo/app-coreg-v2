@@ -9,5 +9,17 @@
 set -e
 set -x
 
+if [ -n "$FREESURFER_LICENSE" ]; then
+    echo $FREESURFER_LICENSE > license.txt
+elif [ -n "$FS_LICENSE" ] && [ -f "$FS_LICENSE" ]; then
+    cp "$FS_LICENSE" license.txt
+else
+    echo "Please set FREESURFER_LICENSE or FS_LICENSE in resource environment" && exit 1
+fi
+
 export QT_QPA_PLATFORM=offscreen
-singularity exec docker://brainlife/mne:1.2.1 python3 main.py
+singularity exec \
+  --pwd `pwd` \
+  -B `pwd`/license.txt:/usr/local/freesurfer/license.txt \
+  docker://brainlife/mne-freesurfer:7.3.2-1.2.1 \
+  python3 main.py
