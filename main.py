@@ -12,7 +12,7 @@ import numpy as np
 
 # Set up FreeSurfer environment (needed for make_scalp_surfaces)
 if not os.environ.get('FREESURFER_HOME'):
-    os.environ['FREESURFER_HOME'] = '/usr/local/freesurfer'
+    os.environ['FREESURFER_HOME'] = '/opt/freesurfer'
 fs_home = os.environ['FREESURFER_HOME']
 os.environ['PATH'] = os.path.join(fs_home, 'bin') + ':' + os.environ.get('PATH', '')
 
