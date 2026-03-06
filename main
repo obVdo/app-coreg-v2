@@ -9,4 +9,5 @@
 set -e
 set -x
 
-singularity exec -e --env QT_QPA_PLATFORM=offscreen docker://brainlife/mne:1.2.1 python3 main.py
+export QT_QPA_PLATFORM=offscreen
+singularity exec docker://brainlife/mne:1.2.1 python3 main.py
