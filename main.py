@@ -170,6 +170,9 @@ use_3d = False
 use_meg = modality in ('meg', 'meeg')
 use_eeg = modality in ('eeg', 'meeg')
 
+# Force VTK offscreen before pyvista import — prevents hard abort when no X display
+os.environ['VTK_DEFAULT_RENDER_WINDOW_OFFSCREEN'] = '1'
+
 try:
     import pyvista as pv
     pv.OFF_SCREEN = True
