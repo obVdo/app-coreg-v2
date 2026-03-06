@@ -41,7 +41,7 @@ report_items = []
 config = load_config()
 
 # == LOAD SENSOR DATA (for info + digitization) ==
-epochs_file = config.get('epochs') or None
+epochs_file = config.get('epochs') or config.get('epo') or None
 raw_file    = config.get('raw') or None
 
 try:
