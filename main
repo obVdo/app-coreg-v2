@@ -21,4 +21,4 @@ singularity exec \
   --pwd `pwd` \
   -B `pwd`/license.txt:/opt/freesurfer/license.txt \
   docker://aunnikri642/app-freesurfer-mne-source-recon \
-  xvfb-run -a python3 main.py
+  bash -c "Xvfb :99 -screen 0 1024x768x24 & sleep 2 && DISPLAY=:99 python3 main.py"
