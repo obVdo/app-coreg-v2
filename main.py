@@ -182,7 +182,7 @@ except Exception as e:
 # Shared kwargs for all mne.viz.plot_alignment calls
 plot_kwargs = dict(
     subject=subject, subjects_dir=subjects_dir,
-    surfaces='head',
+    surfaces='head-dense',
     dig=True,
     meg='sensors' if use_meg else [],
     eeg='projected' if use_eeg else [],
