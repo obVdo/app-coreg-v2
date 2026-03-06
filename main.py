@@ -187,6 +187,7 @@ plot_kwargs = dict(
     meg='sensors' if use_meg else [],
     eeg='projected' if use_eeg else [],
     coord_frame='head',
+    show_axes=True,
 )
 
 
