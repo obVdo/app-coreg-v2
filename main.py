@@ -210,7 +210,13 @@ def _save_alignment_fig(step_name, label, add_to_product=False):
 
 
 # == COREGISTRATION ==
-fiducials = config.get('fiducials') or 'auto'
+# fiducials: 'auto' | 'estimated' | JSON dict string e.g. '{"nasion":[0,0.1,0],"lpa":[-0.07,0,0],"rpa":[0.07,0,0]}'
+fiducials_raw = config.get('fiducials') or 'auto'
+import json
+try:
+    fiducials = json.loads(fiducials_raw)  # parse dict if JSON string provided
+except (TypeError, ValueError, json.JSONDecodeError):
+    fiducials = fiducials_raw  # keep as string ('auto', 'estimated')
 
 try:
     coreg = mne.coreg.Coregistration(
