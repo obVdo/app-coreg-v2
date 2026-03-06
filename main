@@ -9,9 +9,4 @@
 set -e
 set -x
 
-module load proxy
-
-singularity exec \
-  --pwd `pwd` \
-  docker://brainlife/mne:1.2.1 \
-  python3 main.py
+singularity exec docker://brainlife/mne:1.2.1 python3 main.py
