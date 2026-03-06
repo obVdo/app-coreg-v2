@@ -172,6 +172,7 @@ use_eeg = modality in ('eeg', 'meeg')
 
 try:
     import pyvista as pv
+    pv.start_xvfb()  # start virtual display if no X server
     pv.OFF_SCREEN = True
     mne.viz.set_3d_backend('pyvistaqt')
 
