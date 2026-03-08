@@ -19,6 +19,5 @@ fi
 
 singularity exec \
   -B `pwd`/license.txt:/opt/freesurfer/license.txt \
-  --env LIBGL_ALWAYS_SOFTWARE=1 \
   docker://aunnikri642/app-freesurfer-mne-source-recon \
-  xvfb-run -a python3 main.py
+  python3 main.py
