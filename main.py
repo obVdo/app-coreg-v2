@@ -10,6 +10,12 @@ import os
 import sys
 import numpy as np
 
+# OSMesa offscreen rendering — must be set BEFORE vtk/pyvista/mne.viz is imported
+os.environ.setdefault('VTK_DEFAULT_RENDER_WINDOW_OFFSCREEN', '1')
+os.environ.setdefault('PYOPENGL_PLATFORM', 'osmesa')
+os.environ.setdefault('MPLBACKEND', 'Agg')
+os.environ.pop('DISPLAY', None)  # prevent any X11/GLX attempt
+
 # Set up FreeSurfer environment (needed for make_scalp_surfaces)
 if not os.environ.get('FREESURFER_HOME'):
     os.environ['FREESURFER_HOME'] = '/opt/freesurfer'
@@ -184,12 +190,19 @@ if hsp_count == 0:
         "warning"
     )
 
-# == PREPARE 3D BACKEND (disabled — GLX crashes headless on ICM HPC) ==
-# pyvistaqt requires hardware GLX which Xvfb does not provide on ICM compute nodes.
-# Alignment screenshots are skipped; trans.fif and distance histogram are still produced.
+# == PREPARE 3D BACKEND (OSMesa offscreen — no GLX/X11 required) ==
 use_3d = False
 use_meg = modality in ('meg', 'meeg')
 use_eeg = modality in ('eeg', 'meeg')
+
+try:
+    import pyvista as pv
+    pv.OFF_SCREEN = True
+    mne.viz.set_3d_backend('pyvistaqt')
+    use_3d = True
+except Exception as e:
+    add_info_to_product(report_items,
+                        f"3D alignment plots unavailable: {e}", "warning")
 
 # Shared kwargs for all mne.viz.plot_alignment calls
 plot_kwargs = dict(
