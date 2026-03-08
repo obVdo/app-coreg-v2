@@ -45,6 +45,7 @@ report_items = []
 
 # == LOAD CONFIG ==
 config = load_config()
+config = {k.strip(): v for k, v in config.items()}  # strip tabs/spaces from keys (Brainlife UI bug)
 
 # == LOAD SENSOR DATA (for info + digitization) ==
 epochs_file = config.get('epochs') or config.get('epo') or None
