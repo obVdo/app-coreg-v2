@@ -190,7 +190,6 @@ use_eeg = modality in ('eeg', 'meeg')
 
 try:
     import pyvista as pv
-    pv.start_xvfb()  # start virtual display if no X server
     pv.OFF_SCREEN = True
     mne.viz.set_3d_backend('pyvistaqt')
 
@@ -356,12 +355,12 @@ except Exception as e:
     add_info_to_product(report_items, f"Could not compute fit distances: {e}", "warning")
 
 # == SAVE trans.fif ==
-trans_path = os.path.join('out_dir', 'trans.fif')
+trans_path = os.path.join('out_dir', 'trans-trans.fif')
 try:
     mne.write_trans(trans_path, coreg.trans, overwrite=True)
-    add_info_to_product(report_items, "trans.fif saved successfully", "info")
+    add_info_to_product(report_items, "trans-trans.fif saved successfully", "info")
 except Exception as e:
-    add_info_to_product(report_items, f"FATAL: Could not save trans.fif: {e}", "error")
+    add_info_to_product(report_items, f"FATAL: Could not save trans-trans.fif: {e}", "error")
     create_product_json(report_items)
     sys.exit(1)
 
