@@ -301,6 +301,7 @@ def _save_alignment_fig(step_name, label, add_to_product=False):
             fig.plotter.camera.azimuth = azimuth
             fig.plotter.camera.elevation = elevation
             fig.plotter.camera.reset_clipping_range()
+            fig.plotter.render()
             img = fig.plotter.screenshot(return_img=True)
             imgs.append((view_label, img))
         try:
