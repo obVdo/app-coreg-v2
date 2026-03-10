@@ -19,9 +19,13 @@ os.environ.setdefault('MPLBACKEND', 'Agg')
 
 # Set up FreeSurfer environment (needed for make_scalp_surfaces)
 if not os.environ.get('FREESURFER_HOME'):
-    os.environ['FREESURFER_HOME'] = '/opt/freesurfer'
-fs_home = os.environ['FREESURFER_HOME']
-os.environ['PATH'] = os.path.join(fs_home, 'bin') + ':' + os.environ.get('PATH', '')
+    for _candidate in ['/usr/local/freesurfer', '/opt/freesurfer', '/usr/share/freesurfer']:
+        if os.path.isdir(os.path.join(_candidate, 'bin')):
+            os.environ['FREESURFER_HOME'] = _candidate
+            break
+fs_home = os.environ.get('FREESURFER_HOME', '')
+if fs_home:
+    os.environ['PATH'] = os.path.join(fs_home, 'bin') + ':' + os.environ.get('PATH', '')
 
 # Resolve brainlife_utils — try local copy first, then parent monorepo
 app_dir = os.path.dirname(os.path.abspath(__file__))
@@ -144,6 +148,8 @@ add_info_to_product(report_items, f"Subject: {subject}", "info")
 # == MAKE SCALP SURFACES (required for 3D alignment plots) ==
 # Creates head-dense.fif in the FreeSurfer subject's bem/ directory.
 # Requires FreeSurfer binaries (mkheadsurf). Skipped gracefully if unavailable.
+# mkheadsurf needs SUBJECTS_DIR in env (not just as a CLI arg).
+os.environ["SUBJECTS_DIR"] = subjects_dir
 try:
     mne.bem.make_scalp_surfaces(subject, subjects_dir=subjects_dir,
                                 force=True, overwrite=True, no_decimate=True,
@@ -248,9 +254,16 @@ except Exception as e:
                         f"3D alignment plots unavailable: {e}", "warning")
 
 # Shared kwargs for all mne.viz.plot_alignment calls
+# Use head-dense if available (requires make_scalp_surfaces), else fall back to white
+_head_dense_fif = os.path.join(subjects_dir, subject, 'bem', f'{subject}-head-dense.fif')
+_plot_surface = 'head-dense' if os.path.isfile(_head_dense_fif) else 'white'
+if _plot_surface == 'white':
+    add_info_to_product(report_items,
+                        "head-dense surface not found — alignment plots will show white matter surface",
+                        "warning")
 plot_kwargs = dict(
     subject=subject, subjects_dir=subjects_dir,
-    surfaces='head-dense',
+    surfaces=_plot_surface,
     dig=True,
     meg='sensors' if use_meg else [],
     eeg='projected' if use_eeg else [],
