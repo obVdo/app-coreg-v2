@@ -17,7 +17,11 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 os.environ.setdefault('VTK_DEFAULT_RENDER_WINDOW_OFFSCREEN', '1')
 os.environ.setdefault('MPLBACKEND', 'Agg')
 
-# Set up FreeSurfer environment (needed for make_scalp_surfaces)
+# Set up FreeSurfer environment (needed for make_scalp_surfaces / mkheadsurf).
+# mkheadsurf requires the full FreeSurfer env (MNI_DIR, PERL5LIB, etc.),
+# not just FREESURFER_HOME + PATH. Source SetUpFreeSurfer.sh via subprocess
+# to capture and apply all variables.
+import subprocess as _sp
 if not os.environ.get('FREESURFER_HOME'):
     for _candidate in ['/usr/local/freesurfer', '/opt/freesurfer', '/usr/share/freesurfer']:
         if os.path.isdir(os.path.join(_candidate, 'bin')):
@@ -25,7 +29,19 @@ if not os.environ.get('FREESURFER_HOME'):
             break
 fs_home = os.environ.get('FREESURFER_HOME', '')
 if fs_home:
-    os.environ['PATH'] = os.path.join(fs_home, 'bin') + ':' + os.environ.get('PATH', '')
+    _setup = os.path.join(fs_home, 'SetUpFreeSurfer.sh')
+    if os.path.isfile(_setup):
+        # Source setup script and capture resulting env vars
+        _result = _sp.run(
+            ['bash', '-c', f'source {_setup} > /dev/null 2>&1 && env'],
+            capture_output=True, text=True
+        )
+        for _line in _result.stdout.splitlines():
+            _k, _, _v = _line.partition('=')
+            if _k and not _k.startswith('_') and _k.isidentifier():
+                os.environ.setdefault(_k, _v)
+    else:
+        os.environ['PATH'] = os.path.join(fs_home, 'bin') + ':' + os.environ.get('PATH', '')
 
 # Resolve brainlife_utils — try local copy first, then parent monorepo
 app_dir = os.path.dirname(os.path.abspath(__file__))
