@@ -282,17 +282,42 @@ plot_kwargs = dict(
 
 
 def _save_alignment_fig(step_name, label, add_to_product=False):
-    """Save one alignment screenshot at current coreg state. Silently skips if 3D unavailable."""
+    """Save 4-view (front/left/right/top) tiled screenshot. Skips if 3D unavailable."""
     if not use_3d:
         return
+    # view_xz = front (Y+ camera), view_yz = left (X+ camera),
+    # view_xz(negative=True) = back, view_xy = top (Z+ camera)
+    _views = [
+        ("Front",  lambda p: p.view_xz()),
+        ("Left",   lambda p: p.view_yz()),
+        ("Right",  lambda p: p.view_yz(negative=True)),
+        ("Top",    lambda p: p.view_xy()),
+    ]
     try:
+        import numpy as np
+        import matplotlib.pyplot as plt
         fig = mne.viz.plot_alignment(info, trans=coreg.trans, **plot_kwargs)
-        path = os.path.join('out_figs', f'{step_name}.png')
-        fig.plotter.screenshot(path)
+        imgs = []
+        for view_label, set_view in _views:
+            set_view(fig.plotter)
+            fig.plotter.reset_camera()
+            img = fig.plotter.screenshot(return_img=True)
+            imgs.append((view_label, img))
         try:
             fig.plotter.close()
         except Exception:
             pass
+        # tile into 2x2 grid
+        fig_mpl, axes = plt.subplots(2, 2, figsize=(12, 9))
+        fig_mpl.suptitle(label, fontsize=13, fontweight="bold")
+        for ax, (view_label, img) in zip(axes.flat, imgs):
+            ax.imshow(img)
+            ax.set_title(view_label, fontsize=10)
+            ax.axis("off")
+        plt.tight_layout()
+        path = os.path.join("out_figs", f"{step_name}.png")
+        fig_mpl.savefig(path, dpi=120, bbox_inches="tight")
+        plt.close(fig_mpl)
         if add_to_product:
             add_image_to_product(report_items, label, filepath=path)
     except Exception as e:
