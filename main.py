@@ -285,11 +285,14 @@ def _save_alignment_fig(step_name, label, add_to_product=False):
     """Save 4-view (front/left/right/top) tiled screenshot. Skips if 3D unavailable."""
     if not use_3d:
         return
+    # MNE _set_3d_view: phi=azimuth, theta=elevation (colatitude from Z+).
+    # Head coords: X=right, Y=anterior(front), Z=superior(up).
+    # elevation=0 -> top (Z+), elevation=90 -> equatorial ring.
     _views = [
-        ("Front",  (0,   90)),
-        ("Right",  (90,  90)),
-        ("Left",   (270, 90)),
-        ("Top",    (0,   180)),
+        ("Front",  (90,  90)),   # camera at Y+ (nose)
+        ("Right",  (0,   90)),   # camera at X+ (patient right)
+        ("Left",   (180, 90)),   # camera at X- (patient left)
+        ("Top",    (0,    0)),   # camera at Z+ (superior)
     ]
     try:
         import numpy as np
@@ -297,12 +300,8 @@ def _save_alignment_fig(step_name, label, add_to_product=False):
         fig = mne.viz.plot_alignment(info, trans=coreg.trans, **plot_kwargs)
         imgs = []
         for view_label, (azimuth, elevation) in _views:
-            fig.plotter.camera_position = "xy"
-            fig.plotter.camera.azimuth = azimuth
-            fig.plotter.camera.elevation = elevation
-            fig.plotter.camera.reset_clipping_range()
-            fig.plotter.render()
-            img = fig.plotter.screenshot(return_img=True)
+            fig.set_camera(azimuth=azimuth, elevation=elevation, distance="auto")
+            img = fig.screenshot()
             imgs.append((view_label, img))
         try:
             fig.plotter.close()
