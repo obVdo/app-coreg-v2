@@ -256,8 +256,17 @@ except Exception as e:
 # Shared kwargs for all mne.viz.plot_alignment calls
 # Use head-dense if available (requires make_scalp_surfaces), else fall back to white
 _head_dense_fif = os.path.join(subjects_dir, subject, 'bem', f'{subject}-head-dense.fif')
-_plot_surface = 'head-dense' if os.path.isfile(_head_dense_fif) else 'white'
-if _plot_surface == 'white':
+# For EEG, a scalp surface is required for electrode projection — use 'auto' as fallback.
+# 'auto' lets MNE pick the best available surface. For MEG-only, 'white' is acceptable.
+if os.path.isfile(_head_dense_fif):
+    _plot_surface = 'head-dense'
+elif use_eeg:
+    _plot_surface = 'auto'
+    add_info_to_product(report_items,
+                        "head-dense surface not found — using surfaces='auto' for EEG projection",
+                        "warning")
+else:
+    _plot_surface = 'white'
     add_info_to_product(report_items,
                         "head-dense surface not found — alignment plots will show white matter surface",
                         "warning")
