@@ -266,15 +266,16 @@ _head_dense_fif = os.path.join(subjects_dir, subject, 'bem', f'{subject}-head-de
 # 'auto' lets MNE pick the best available surface. For MEG-only, 'white' is acceptable.
 if os.path.isfile(_head_dense_fif):
     _plot_surface = 'head-dense'
+    add_info_to_product(report_items, f"Plot surface: head-dense (subject-specific scalp)", "info")
 elif use_eeg:
     _plot_surface = 'auto'
     add_info_to_product(report_items,
-                        "head-dense surface not found — using surfaces='auto' for EEG projection",
+                        "Plot surface: auto (head-dense missing — MNE will pick best available, e.g. lh.seghead)",
                         "warning")
 else:
     _plot_surface = 'white'
     add_info_to_product(report_items,
-                        "head-dense surface not found — alignment plots will show white matter surface",
+                        "Plot surface: white matter (head-dense missing, MEG-only fallback)",
                         "warning")
 plot_kwargs = dict(
     subject=subject, subjects_dir=subjects_dir,
@@ -374,6 +375,25 @@ try:
         fiducials=fiducials,
         on_defects='warn'  # don't crash on minor surface defects
     )
+    # Report which MRI surface is used for coregistration fitting
+    _coreg_surf = getattr(coreg, '_bem_surf', None) or getattr(coreg, 'bem_surf', None)
+    _coreg_surf_name = (os.path.basename(_coreg_surf.get('file', ''))
+                        if isinstance(_coreg_surf, dict) else str(_coreg_surf))
+    if not _coreg_surf_name or _coreg_surf_name == 'None':
+        # Fall back to checking which surface file exists on disk
+        _candidates = [
+            (f'{subject}-head-dense.fif', 'bem'),
+            (f'{subject}-head.fif', 'bem'),
+            ('lh.seghead', 'surf'),
+            ('lh.pial', 'surf'),
+        ]
+        for _fname, _subdir in _candidates:
+            if os.path.isfile(os.path.join(subjects_dir, subject, _subdir, _fname)):
+                _coreg_surf_name = _fname
+                break
+        else:
+            _coreg_surf_name = 'unknown'
+    add_info_to_product(report_items, f"Coreg fitting surface: {_coreg_surf_name}", "info")
 except Exception as e:
     add_info_to_product(report_items, f"FATAL: Could not initialise coregistration: {e}", "error")
     create_product_json(report_items)
