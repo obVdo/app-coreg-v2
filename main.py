@@ -282,29 +282,32 @@ plot_kwargs = dict(
 
 
 def _save_alignment_fig(step_name, label, add_to_product=False):
-    """Save 4-view (front/left/right/top) tiled screenshot. Skips if 3D unavailable."""
+    """Save 4-view tiled screenshot. Skips if 3D unavailable."""
     if not use_3d:
         return
-    # mne.viz.set_3d_view is the correct public API for camera control.
-    # Head coords: X=right, Y=anterior(front), Z=superior(up).
+    # Use pyvista view_* methods directly on fig.plotter — bypasses MNE renderer chain
+    # (_OffscreenRenderer._window_initialize is a no-op so mne.viz.set_3d_view camera
+    # changes never reach the VTK framebuffer).
     _views = [
-        ("Front", dict(azimuth=90,  elevation=90, distance="auto")),
-        ("Right", dict(azimuth=0,   elevation=90, distance="auto")),
-        ("Left",  dict(azimuth=180, elevation=90, distance="auto")),
-        ("Top",   dict(azimuth=0,   elevation=0,  distance="auto")),
+        ("Front", lambda p: p.view_xz(negative=False)),
+        ("Back",  lambda p: p.view_xz(negative=True)),
+        ("Left",  lambda p: p.view_yz(negative=True)),
+        ("Right", lambda p: p.view_yz(negative=False)),
     ]
     try:
         import numpy as np
         import matplotlib.pyplot as plt
         fig = mne.viz.plot_alignment(info, trans=coreg.trans, **plot_kwargs)
+        plotter = fig.plotter
         imgs = []
-        for view_label, view_kwargs in _views:
-            mne.viz.set_3d_view(fig, **view_kwargs)
-            fig.plotter.render()
-            img = fig.plotter.screenshot(return_img=True)
+        for view_label, set_view_fn in _views:
+            set_view_fn(plotter)
+            plotter.reset_camera()
+            plotter.render()
+            img = plotter.screenshot(return_img=True)
             imgs.append((view_label, img))
         try:
-            fig.plotter.close()
+            plotter.close()
         except Exception:
             pass
         # tile into 2x2 grid
