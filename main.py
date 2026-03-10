@@ -285,22 +285,22 @@ def _save_alignment_fig(step_name, label, add_to_product=False):
     """Save 4-view (front/left/right/top) tiled screenshot. Skips if 3D unavailable."""
     if not use_3d:
         return
-    # view_xz = front (Y+ camera), view_yz = left (X+ camera),
-    # view_xz(negative=True) = back, view_xy = top (Z+ camera)
     _views = [
-        ("Front",  lambda p: p.view_xz()),
-        ("Left",   lambda p: p.view_yz()),
-        ("Right",  lambda p: p.view_yz(negative=True)),
-        ("Top",    lambda p: p.view_xy()),
+        ("Front",  (0,   90)),
+        ("Right",  (90,  90)),
+        ("Left",   (270, 90)),
+        ("Top",    (0,   180)),
     ]
     try:
         import numpy as np
         import matplotlib.pyplot as plt
         fig = mne.viz.plot_alignment(info, trans=coreg.trans, **plot_kwargs)
         imgs = []
-        for view_label, set_view in _views:
-            set_view(fig.plotter)
-            fig.plotter.reset_camera()
+        for view_label, (azimuth, elevation) in _views:
+            fig.plotter.camera_position = "xy"
+            fig.plotter.camera.azimuth = azimuth
+            fig.plotter.camera.elevation = elevation
+            fig.plotter.camera.reset_clipping_range()
             img = fig.plotter.screenshot(return_img=True)
             imgs.append((view_label, img))
         try:
