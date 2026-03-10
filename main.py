@@ -327,13 +327,36 @@ def _save_alignment_fig(step_name, label, add_to_product=False):
     if not view_files:
         return
 
-    # Add each view individually to the MNE report
+    # Tile all views into a 2x2 grid (for report + optionally product.json)
+    tiled_path = os.path.join("out_figs", f"{step_name}_tiled.png")
+    try:
+        import matplotlib.pyplot as plt
+        fig_mpl, axes = plt.subplots(2, 2, figsize=(12, 9))
+        fig_mpl.suptitle(label, fontsize=13, fontweight="bold")
+        for ax, (view_label, fpath) in zip(axes.flat, view_files):
+            ax.imshow(plt.imread(fpath))
+            ax.set_title(view_label, fontsize=10)
+            ax.axis("off")
+        # blank unused panels if fewer than 4 views succeeded
+        for ax in axes.flat[len(view_files):]:
+            ax.axis("off")
+        plt.tight_layout()
+        fig_mpl.savefig(tiled_path, dpi=120, bbox_inches="tight")
+        plt.close(fig_mpl)
+    except Exception as e:
+        add_info_to_product(report_items, f"Could not tile {label} views: {e}", "warning")
+        tiled_path = None
+
+    # Add tiled image + individual views to report
+    if tiled_path and os.path.isfile(tiled_path):
+        report.add_image(tiled_path, title=label)
     for view_label, fpath in view_files:
         report.add_image(fpath, title=f"{label} — {view_label}")
 
-    # product.json gets front view only
+    # product.json gets the tiled image (or front view fallback)
     if add_to_product:
-        add_image_to_product(report_items, label, filepath=view_files[0][1])
+        product_img = tiled_path if (tiled_path and os.path.isfile(tiled_path)) else view_files[0][1]
+        add_image_to_product(report_items, label, filepath=product_img)
 
 
 # == COREGISTRATION ==
