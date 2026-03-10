@@ -425,6 +425,18 @@ except Exception as e:
 
 # == SAVE REPORT ==
 report = mne.Report(title='Coregistration Report')
+_fig_entries = [
+    ('coreg_01_initial',   '1. Initial (before fit)'),
+    ('coreg_02_fiducials', '2. After fiducials fit'),
+    ('coreg_03_icp1',      '3. After ICP pass 1'),
+    ('coreg_04_final',     'Final alignment'),
+    ('coreg_distances',    'Fit distances histogram'),
+    ('coreg_sensors',      'Sensor topomap'),
+]
+for fname, title in _fig_entries:
+    fpath = os.path.join('out_figs', fname + '.png')
+    if os.path.isfile(fpath):
+        report.add_image(fpath, title=title)
 report.save(os.path.join('out_dir_report', 'report.html'), overwrite=True)
 
 add_info_to_product(report_items, "Coregistration completed successfully", "success")
