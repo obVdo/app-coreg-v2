@@ -298,21 +298,24 @@ def _save_alignment_fig(step_name, label, add_to_product=False):
         import numpy as np
         import matplotlib.pyplot as plt
         fig = mne.viz.plot_alignment(info, trans=coreg.trans, **plot_kwargs)
-        imgs = []
+        # Save each view directly to a file (avoids numpy buffer reference issue)
+        # then load back for tiling.
+        view_files = []
         for view_label, view_kwargs in _views:
             mne.viz.set_3d_view(fig, **view_kwargs)
             fig.plotter.render()
-            img = fig.plotter.screenshot(return_img=True)
-            imgs.append((view_label, img))
+            tmp_path = os.path.join("out_figs", f"{step_name}_{view_label.lower()}.png")
+            fig.plotter.screenshot(tmp_path)
+            view_files.append((view_label, tmp_path))
         try:
             fig.plotter.close()
         except Exception:
             pass
-        # tile into 2x2 grid
+        # tile into 2x2 grid from saved files
         fig_mpl, axes = plt.subplots(2, 2, figsize=(12, 9))
         fig_mpl.suptitle(label, fontsize=13, fontweight="bold")
-        for ax, (view_label, img) in zip(axes.flat, imgs):
-            ax.imshow(img)
+        for ax, (view_label, fpath) in zip(axes.flat, view_files):
+            ax.imshow(plt.imread(fpath))
             ax.set_title(view_label, fontsize=10)
             ax.axis("off")
         plt.tight_layout()
