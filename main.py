@@ -247,6 +247,11 @@ try:
         def _window_close_connect(self, func, *, after=True): pass
         def _window_close_disconnect(self, func): pass
         def _window_set_theme(self, theme): pass
+        def show(self):
+            # plot_alignment calls renderer.show() which normally calls plotter.show()
+            # with auto_close=True — this destroys the render window immediately,
+            # making all subsequent renders no-ops. Use auto_close=False instead.
+            self.figure.plotter.show(auto_close=False)
 
     renderer_mod.backend._Renderer = _OffscreenRenderer
     use_3d = True
@@ -285,34 +290,39 @@ plot_kwargs = dict(
 def _save_alignment_fig(step_name, label, add_to_product=False):
     """Save 4-view alignment screenshots to report. Product.json gets front view only.
 
-    Creates a fresh plot_alignment() per angle — avoids stale framebuffer issue
-    that occurs when changing camera on the same plotter.
+    show(auto_close=False) initializes the render window (_first_time=False) so
+    subsequent render() calls actually re-render with the new camera position.
     """
     if not use_3d:
         return
-    # Fresh figure per angle: set_3d_view on a brand-new plotter, one screenshot each.
     _views = [
-        ("Front", dict(azimuth=90,  elevation=90, distance="auto")),
-        ("Back",  dict(azimuth=270, elevation=90, distance="auto")),
-        ("Left",  dict(azimuth=180, elevation=90, distance="auto")),
-        ("Right", dict(azimuth=0,   elevation=90, distance="auto")),
+        ("Front", [(0,  0.6, 0),  (0,0,0), (0,0,1)]),
+        ("Back",  [(0, -0.6, 0),  (0,0,0), (0,0,1)]),
+        ("Left",  [(-0.6, 0, 0),  (0,0,0), (0,0,1)]),
+        ("Right", [( 0.6, 0, 0),  (0,0,0), (0,0,1)]),
     ]
-    view_files = []
-    for view_label, view_kwargs in _views:
-        try:
-            fig = mne.viz.plot_alignment(info, trans=coreg.trans, **plot_kwargs)
-            mne.viz.set_3d_view(fig, **view_kwargs)
-            fig.plotter.render()
-            fpath = os.path.join("out_figs", f"{step_name}_{view_label.lower()}.png")
-            fig.plotter.screenshot(fpath)
-            view_files.append((view_label, fpath))
+    try:
+        fig = mne.viz.plot_alignment(info, trans=coreg.trans, **plot_kwargs)
+        # show() sets _first_time=False so render() actually re-renders
+        fig.plotter.show(auto_close=False)
+        view_files = []
+        for view_label, cam in _views:
             try:
-                fig.plotter.close()
-            except Exception:
-                pass
-        except Exception as e:
-            add_info_to_product(report_items,
-                                f"Could not render {label} {view_label}: {e}", "warning")
+                fig.plotter.camera_position = cam
+                fig.plotter.render()
+                fpath = os.path.join("out_figs", f"{step_name}_{view_label.lower()}.png")
+                fig.plotter.screenshot(fpath)
+                view_files.append((view_label, fpath))
+            except Exception as e:
+                add_info_to_product(report_items,
+                                    f"Could not render {label} {view_label}: {e}", "warning")
+        try:
+            fig.plotter.close()
+        except Exception:
+            pass
+    except Exception as e:
+        add_info_to_product(report_items, f"Could not create alignment figure: {e}", "warning")
+        return
 
     if not view_files:
         return
@@ -321,7 +331,7 @@ def _save_alignment_fig(step_name, label, add_to_product=False):
     for view_label, fpath in view_files:
         report.add_image(fpath, title=f"{label} — {view_label}")
 
-    # product.json gets front view only (first successful view)
+    # product.json gets front view only
     if add_to_product:
         add_image_to_product(report_items, label, filepath=view_files[0][1])
 
