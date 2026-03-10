@@ -10,11 +10,12 @@ import os
 import sys
 import numpy as np
 
-# OSMesa offscreen rendering — must be set BEFORE vtk/pyvista/mne.viz is imported
+# Headless 3D rendering — must be set BEFORE vtk/pyvista/mne.viz is imported.
+# QT_QPA_PLATFORM=offscreen lets Qt init without X11 (bypasses MNE's _display_is_valid check).
+# VTK_DEFAULT_RENDER_WINDOW_OFFSCREEN=1 tells VTK to render offscreen (uses OSMesa if available).
+os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 os.environ.setdefault('VTK_DEFAULT_RENDER_WINDOW_OFFSCREEN', '1')
-os.environ.setdefault('PYOPENGL_PLATFORM', 'osmesa')
 os.environ.setdefault('MPLBACKEND', 'Agg')
-os.environ.pop('DISPLAY', None)  # prevent any X11/GLX attempt
 
 # Set up FreeSurfer environment (needed for make_scalp_surfaces)
 if not os.environ.get('FREESURFER_HOME'):
@@ -190,15 +191,57 @@ if hsp_count == 0:
         "warning"
     )
 
-# == PREPARE 3D BACKEND (OSMesa offscreen — no GLX/X11 required) ==
+# == PREPARE 3D BACKEND (offscreen via QT_QPA_PLATFORM=offscreen + VTK offscreen) ==
+# Pre-create QApplication so MNE's _display_is_valid() check is bypassed.
 use_3d = False
 use_meg = modality in ('meg', 'meeg')
 use_eeg = modality in ('eeg', 'meeg')
 
 try:
+    # Pre-create QApplication so MNE's _display_is_valid() check is bypassed
+    from qtpy.QtWidgets import QApplication
+    _qapp = QApplication.instance() or QApplication(sys.argv)
+
     import pyvista as pv
     pv.OFF_SCREEN = True
     mne.viz.set_3d_backend('pyvistaqt')
+
+    # Monkey-patch: always create pyvista.Plotter(off_screen=True) instead of
+    # BackgroundPlotter — plot_alignment() doesn't pass off_screen so the original
+    # patch misses it and BackgroundPlotter renders black without hardware GL.
+    from mne.viz.backends._pyvista import (
+        PyVistaFigure, Plotter as PVPlotter, _PyVistaRenderer, _ALL_PLOTTERS,
+    )
+    import mne.viz.backends.renderer as renderer_mod
+
+    def _patched_build(self):
+        if self._plotter is None:
+            store_filtered = {k: v for k, v in self.store.items()
+                              if k in ('window_size', 'shape', 'border', 'multi_samples')}
+            plotter = PVPlotter(off_screen=True, **store_filtered)
+            plotter.background_color = self.background_color
+            self._plotter = plotter
+            try:
+                _ALL_PLOTTERS[plotter._id_name] = plotter
+            except AttributeError:
+                pass
+        if self.plotter.iren is not None:
+            self.plotter.iren.initialize()
+            def safe_update(stime=1, force_redraw=True):
+                self.plotter.render()
+            self.plotter.update = safe_update
+        return self.plotter
+
+    PyVistaFigure._build = _patched_build
+
+    class _OffscreenRenderer(_PyVistaRenderer):
+        _kind = 'pyvistaqt'
+        def _window_initialize(self, **kwargs): pass
+        def _window_close_connect(self, func, *, after=True): pass
+        def _window_close_disconnect(self, func): pass
+        def _window_set_theme(self, theme): pass
+
+    renderer_mod.backend._Renderer = _OffscreenRenderer
     use_3d = True
 except Exception as e:
     add_info_to_product(report_items,
