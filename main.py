@@ -20,8 +20,7 @@ os.environ.setdefault('MPLBACKEND', 'Agg')
 # Set up FreeSurfer environment (needed for make_scalp_surfaces / mkheadsurf).
 # mkheadsurf requires the full FreeSurfer env (MNI_DIR, PERL5LIB, etc.),
 # not just FREESURFER_HOME + PATH.
-import subprocess
-import subprocess as _sp  # alias for FS env setup below
+import subprocess as _sp
 if not os.environ.get('FREESURFER_HOME'):
     for _candidate in ['/usr/local/freesurfer', '/opt/freesurfer', '/usr/share/freesurfer']:
         if os.path.isdir(os.path.join(_candidate, 'bin')):
@@ -201,52 +200,7 @@ if not os.path.isdir(os.path.join(subjects_dir, subject)):
     sys.exit(1)
 
 add_info_to_product(report_items, f"Subject: {subject}", "info")
-
-# == MAKE SCALP SURFACES (required for high-density head surface in plots) ==
-# Creates head-dense.fif via mkheadsurf. Run it directly so we can capture stderr.
-# mkheadsurf needs SUBJECTS_DIR in env.
 os.environ["SUBJECTS_DIR"] = subjects_dir
-add_info_to_product(
-    report_items,
-    f"FreeSurfer env: FREESURFER_HOME={os.environ.get('FREESURFER_HOME','unset')} "
-    f"MNI_DIR={os.environ.get('MNI_DIR','unset')} "
-    f"SUBJECTS_DIR={os.environ.get('SUBJECTS_DIR','unset')}",
-    "info"
-)
-_mkheadsurf_bin = os.path.join(os.environ.get('FREESURFER_HOME', ''), 'bin', 'mkheadsurf')
-if not os.path.isfile(_mkheadsurf_bin):
-    import shutil as _shutil
-    _mkheadsurf_bin = _shutil.which('mkheadsurf') or ''
-
-if _mkheadsurf_bin:
-    # Run mkheadsurf directly so stdout+stderr are captured and visible in product.json
-    _mhs_cmd = [_mkheadsurf_bin, '-subjid', subject,
-                '-srcvol', 'T1.mgz', '-thresh1', '20', '-thresh2', '20']
-    _mhs = subprocess.run(_mhs_cmd, capture_output=True, text=True,
-                          env=dict(os.environ))
-    if _mhs.returncode == 0:
-        # mkheadsurf succeeded — now let MNE convert the surface to .fif
-        try:
-            mne.bem.make_scalp_surfaces(subject, subjects_dir=subjects_dir,
-                                        force=True, overwrite=True, no_decimate=True,
-                                        verbose=True)
-            add_info_to_product(report_items, "Scalp surface created (head-dense)", "info")
-        except Exception as e:
-            add_info_to_product(report_items,
-                                f"mkheadsurf OK but MNE surface conversion failed: {e}", "warning")
-    else:
-        _out = (_mhs.stdout + '\n' + _mhs.stderr).strip()
-        if 'license' in _out.lower():
-            add_info_to_product(report_items,
-                                "mkheadsurf failed: FreeSurfer license needs updating. "
-                                "glibc > 2.15 requires new license format — get one free at "
-                                "https://surfer.nmr.mgh.harvard.edu/registration.html. "
-                                "Falling back to outer_skin surface.", "warning")
-        else:
-            add_info_to_product(report_items,
-                                f"mkheadsurf failed (exit {_mhs.returncode}): {_out[-400:]}", "warning")
-else:
-    add_info_to_product(report_items, "mkheadsurf binary not found — skipping head-dense", "warning")
 
 # == CHECK DIGITIZATION POINTS ==
 if not info['dig']:
@@ -347,22 +301,11 @@ except Exception as e:
     add_info_to_product(report_items,
                         f"3D alignment plots unavailable: {e}", "warning")
 
-# Shared kwargs for all mne.viz.plot_alignment calls
-# Use head-dense if available (requires make_scalp_surfaces), else fall back to white
-_head_dense_fif = os.path.join(subjects_dir, subject, 'bem', f'{subject}-head-dense.fif')
-_has_head_dense = os.path.isfile(_head_dense_fif)
-
 # app-bem-v2 (watershed) always runs before coreg, so outer_skin + brain are guaranteed.
-# Valid names — scalp: 'head'/'outer_skin', 'head-dense'/'seghead'
-#               skull: 'outer_skull', 'inner_skull'/'brain'
-if _has_head_dense:
-    _plot_surface = {'head-dense': 0.4, 'brain': 1.0}
-    add_info_to_product(report_items,
-                        "Plot surfaces: head-dense (40% opacity) + brain (inner_skull)", "info")
-else:
-    _plot_surface = {'outer_skin': 0.4, 'brain': 1.0}
-    add_info_to_product(report_items,
-                        "Plot surfaces: outer_skin (40% opacity) + brain (head-dense missing)", "warning")
+# outer_skin = scalp at 40% opacity (see-through); brain = inner_skull solid inside.
+# Valid names — scalp: 'head'/'outer_skin'; skull: 'outer_skull', 'inner_skull'/'brain'
+_plot_surface = {'outer_skin': 0.4, 'brain': 1.0}
+add_info_to_product(report_items, "Plot surfaces: outer_skin (40% opacity) + brain (inner_skull)", "info")
 
 plot_kwargs = dict(
     subject=subject, subjects_dir=subjects_dir,
