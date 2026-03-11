@@ -235,9 +235,16 @@ if _mkheadsurf_bin:
             add_info_to_product(report_items,
                                 f"mkheadsurf OK but MNE surface conversion failed: {e}", "warning")
     else:
-        _out = (_mhs.stdout + '\n' + _mhs.stderr).strip()[-800:]
-        add_info_to_product(report_items,
-                            f"mkheadsurf failed (exit {_mhs.returncode}):\n{_out}", "warning")
+        _out = (_mhs.stdout + '\n' + _mhs.stderr).strip()
+        if 'license' in _out.lower():
+            add_info_to_product(report_items,
+                                "mkheadsurf failed: FreeSurfer license needs updating. "
+                                "glibc > 2.15 requires new license format — get one free at "
+                                "https://surfer.nmr.mgh.harvard.edu/registration.html. "
+                                "Falling back to outer_skin surface.", "warning")
+        else:
+            add_info_to_product(report_items,
+                                f"mkheadsurf failed (exit {_mhs.returncode}): {_out[-400:]}", "warning")
 else:
     add_info_to_product(report_items, "mkheadsurf binary not found — skipping head-dense", "warning")
 
