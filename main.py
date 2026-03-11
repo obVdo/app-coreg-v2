@@ -202,10 +202,9 @@ if not os.path.isdir(os.path.join(subjects_dir, subject)):
 
 add_info_to_product(report_items, f"Subject: {subject}", "info")
 
-# == MAKE SCALP SURFACES (required for 3D alignment plots) ==
-# Creates head-dense.fif in the FreeSurfer subject's bem/ directory.
-# Requires FreeSurfer binaries (mkheadsurf). Skipped gracefully if unavailable.
-# mkheadsurf needs SUBJECTS_DIR in env (not just as a CLI arg).
+# == MAKE SCALP SURFACES (required for high-density head surface in plots) ==
+# Creates head-dense.fif via mkheadsurf. Run it directly so we can capture stderr.
+# mkheadsurf needs SUBJECTS_DIR in env.
 os.environ["SUBJECTS_DIR"] = subjects_dir
 add_info_to_product(
     report_items,
@@ -214,19 +213,33 @@ add_info_to_product(
     f"SUBJECTS_DIR={os.environ.get('SUBJECTS_DIR','unset')}",
     "info"
 )
-try:
-    mne.bem.make_scalp_surfaces(subject, subjects_dir=subjects_dir,
-                                force=True, overwrite=True, no_decimate=True,
-                                verbose=True)
-    add_info_to_product(report_items, "Scalp surface created (head-dense)", "info")
-except subprocess.CalledProcessError as e:
-    _stderr = (e.stderr or '').strip()[-500:]  # last 500 chars of stderr
-    add_info_to_product(report_items,
-                        f"mkheadsurf failed (exit {e.returncode}): {e.cmd}\n{_stderr}",
-                        "warning")
-except Exception as e:
-    add_info_to_product(report_items,
-                        f"Scalp surface generation skipped: {e}", "warning")
+_mkheadsurf_bin = os.path.join(os.environ.get('FREESURFER_HOME', ''), 'bin', 'mkheadsurf')
+if not os.path.isfile(_mkheadsurf_bin):
+    import shutil as _shutil
+    _mkheadsurf_bin = _shutil.which('mkheadsurf') or ''
+
+if _mkheadsurf_bin:
+    # Run mkheadsurf directly so stdout+stderr are captured and visible in product.json
+    _mhs_cmd = [_mkheadsurf_bin, '-subjid', subject,
+                '-srcvol', 'T1.mgz', '-thresh1', '20', '-thresh2', '20']
+    _mhs = subprocess.run(_mhs_cmd, capture_output=True, text=True,
+                          env=dict(os.environ))
+    if _mhs.returncode == 0:
+        # mkheadsurf succeeded — now let MNE convert the surface to .fif
+        try:
+            mne.bem.make_scalp_surfaces(subject, subjects_dir=subjects_dir,
+                                        force=True, overwrite=True, no_decimate=True,
+                                        verbose=True)
+            add_info_to_product(report_items, "Scalp surface created (head-dense)", "info")
+        except Exception as e:
+            add_info_to_product(report_items,
+                                f"mkheadsurf OK but MNE surface conversion failed: {e}", "warning")
+    else:
+        _out = (_mhs.stdout + '\n' + _mhs.stderr).strip()[-800:]
+        add_info_to_product(report_items,
+                            f"mkheadsurf failed (exit {_mhs.returncode}):\n{_out}", "warning")
+else:
+    add_info_to_product(report_items, "mkheadsurf binary not found — skipping head-dense", "warning")
 
 # == CHECK DIGITIZATION POINTS ==
 if not info['dig']:
