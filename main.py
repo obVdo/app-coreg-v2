@@ -332,19 +332,29 @@ except Exception as e:
 _head_dense_fif = os.path.join(subjects_dir, subject, 'bem', f'{subject}-head-dense.fif')
 # For EEG, a scalp surface is required for electrode projection — use 'auto' as fallback.
 # 'auto' lets MNE pick the best available surface. For MEG-only, 'white' is acceptable.
-if os.path.isfile(_head_dense_fif):
-    _plot_surface = 'head-dense'
-    add_info_to_product(report_items, f"Plot surface: head-dense (subject-specific scalp)", "info")
-elif use_eeg:
-    _plot_surface = 'auto'
+# Build surfaces dict: scalp (semi-transparent) + white matter (opaque) so brain is visible.
+# MNE plot_alignment accepts surfaces as dict {name: opacity} or list.
+_pial_fif = os.path.join(subjects_dir, subject, 'surf', 'lh.pial')
+_has_pial  = os.path.isfile(_pial_fif)
+_has_head_dense = os.path.isfile(_head_dense_fif)
+
+if _has_head_dense:
+    _plot_surface = {'head-dense': 0.4, 'white': 1.0}  # semi-transparent scalp + brain
     add_info_to_product(report_items,
-                        "Plot surface: auto (head-dense missing — MNE will pick best available, e.g. lh.seghead)",
-                        "warning")
+                        "Plot surfaces: head-dense (40% opacity) + white matter (opaque)", "info")
+elif _has_pial:
+    # No dense scalp surface, but can use pial as outer cortex
+    if use_eeg:
+        _plot_surface = {'auto': 0.4, 'pial': 1.0}
+    else:
+        _plot_surface = {'white': 1.0}
+    add_info_to_product(report_items,
+                        "Plot surfaces: pial cortex (head-dense missing)", "warning")
 else:
-    _plot_surface = 'white'
+    _plot_surface = 'auto' if use_eeg else 'white'
     add_info_to_product(report_items,
-                        "Plot surface: white matter (head-dense missing, MEG-only fallback)",
-                        "warning")
+                        f"Plot surface: {_plot_surface} (FreeSurfer surfaces missing)", "warning")
+
 plot_kwargs = dict(
     subject=subject, subjects_dir=subjects_dir,
     surfaces=_plot_surface,
