@@ -330,30 +330,25 @@ except Exception as e:
 # Shared kwargs for all mne.viz.plot_alignment calls
 # Use head-dense if available (requires make_scalp_surfaces), else fall back to white
 _head_dense_fif = os.path.join(subjects_dir, subject, 'bem', f'{subject}-head-dense.fif')
-# For EEG, a scalp surface is required for electrode projection — use 'auto' as fallback.
-# 'auto' lets MNE pick the best available surface. For MEG-only, 'white' is acceptable.
-# Build surfaces dict: scalp (semi-transparent) + white matter (opaque) so brain is visible.
-# MNE plot_alignment accepts surfaces as dict {name: opacity} or list.
-_pial_fif = os.path.join(subjects_dir, subject, 'surf', 'lh.pial')
-_has_pial  = os.path.isfile(_pial_fif)
+_head_fif       = os.path.join(subjects_dir, subject, 'bem', f'{subject}-head.fif')
 _has_head_dense = os.path.isfile(_head_dense_fif)
+_has_head       = os.path.isfile(_head_fif)
 
+# Surfaces dict: scalp at 40% opacity (see through) + brain (inner_skull) solid inside.
+# Valid names — scalp: 'head', 'outer_skin', 'head-dense', 'seghead'
+#               skull: 'outer_skull', 'inner_skull', 'brain'
 if _has_head_dense:
-    _plot_surface = {'head-dense': 0.4, 'white': 1.0}  # semi-transparent scalp + brain
+    _plot_surface = {'head-dense': 0.4, 'brain': 1.0}
     add_info_to_product(report_items,
-                        "Plot surfaces: head-dense (40% opacity) + white matter (opaque)", "info")
-elif _has_pial:
-    # No dense scalp surface, but can use pial as outer cortex
-    if use_eeg:
-        _plot_surface = {'auto': 0.4, 'pial': 1.0}
-    else:
-        _plot_surface = {'white': 1.0}
+                        "Plot surfaces: head-dense (40% opacity) + brain (inner_skull)", "info")
+elif _has_head:
+    _plot_surface = {'outer_skin': 0.4, 'brain': 1.0}
     add_info_to_product(report_items,
-                        "Plot surfaces: pial cortex (head-dense missing)", "warning")
+                        "Plot surfaces: outer_skin (40% opacity) + brain (head-dense missing)", "warning")
 else:
-    _plot_surface = 'auto' if use_eeg else 'white'
+    _plot_surface = 'brain'
     add_info_to_product(report_items,
-                        f"Plot surface: {_plot_surface} (FreeSurfer surfaces missing)", "warning")
+                        "Plot surface: brain only (no scalp surface available)", "warning")
 
 plot_kwargs = dict(
     subject=subject, subjects_dir=subjects_dir,
