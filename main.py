@@ -19,9 +19,9 @@ os.environ.setdefault('MPLBACKEND', 'Agg')
 
 # Set up FreeSurfer environment (needed for make_scalp_surfaces / mkheadsurf).
 # mkheadsurf requires the full FreeSurfer env (MNI_DIR, PERL5LIB, etc.),
-# not just FREESURFER_HOME + PATH. Source SetUpFreeSurfer.sh via subprocess
-# to capture and apply all variables.
-import subprocess as _sp
+# not just FREESURFER_HOME + PATH.
+import subprocess
+import subprocess as _sp  # alias for FS env setup below
 if not os.environ.get('FREESURFER_HOME'):
     for _candidate in ['/usr/local/freesurfer', '/opt/freesurfer', '/usr/share/freesurfer']:
         if os.path.isdir(os.path.join(_candidate, 'bin')):
@@ -31,17 +31,43 @@ fs_home = os.environ.get('FREESURFER_HOME', '')
 if fs_home:
     _setup = os.path.join(fs_home, 'SetUpFreeSurfer.sh')
     if os.path.isfile(_setup):
-        # Source setup script and capture resulting env vars
+        # Source SetUpFreeSurfer.sh and capture the resulting environment.
+        # Use 'env -i' to start from a clean env so we can see what SetUpFreeSurfer
+        # actually sets, then merge back. We keep the original env and ADD what's new.
         _result = _sp.run(
-            ['bash', '-c', f'source {_setup} > /dev/null 2>&1 && env'],
-            capture_output=True, text=True
+            ['bash', '-c', f'source {_setup} 2>/dev/null && env'],
+            capture_output=True, text=True,
+            env=dict(os.environ)  # pass current env so bash can find 'source'
         )
         for _line in _result.stdout.splitlines():
             _k, _, _v = _line.partition('=')
             if _k and not _k.startswith('_') and _k.isidentifier():
-                os.environ.setdefault(_k, _v)
-    else:
-        os.environ['PATH'] = os.path.join(fs_home, 'bin') + ':' + os.environ.get('PATH', '')
+                # Always update PATH (need to append FS bin dirs, not just setdefault)
+                if _k == 'PATH':
+                    # Merge: keep existing PATH entries, add new FS entries
+                    _existing = set(os.environ.get('PATH', '').split(':'))
+                    for _p in _v.split(':'):
+                        if _p and _p not in _existing:
+                            os.environ['PATH'] = _p + ':' + os.environ['PATH']
+                else:
+                    os.environ.setdefault(_k, _v)
+    # Explicitly set critical FreeSurfer vars as fallback if sourcing didn't provide them
+    for _k, _rel in [
+        ('MNI_DIR',      'mni'),
+        ('MINC_BIN_DIR', os.path.join('mni', 'bin')),
+        ('MINC_LIB_DIR', os.path.join('mni', 'lib')),
+        ('FSF_OUTPUT_FORMAT', 'nii.gz'),
+    ]:
+        os.environ.setdefault(_k, os.path.join(fs_home, _rel))
+    # Ensure FreeSurfer bin dirs are in PATH
+    for _bin in [os.path.join(fs_home, 'bin'), os.path.join(fs_home, 'mni', 'bin')]:
+        if os.path.isdir(_bin) and _bin not in os.environ.get('PATH', ''):
+            os.environ['PATH'] = _bin + ':' + os.environ['PATH']
+    # Perl libs needed by mkheadsurf (a Perl script)
+    _perl5 = os.path.join(fs_home, 'mni', 'lib', 'perl5', '5.8.5')
+    if os.path.isdir(_perl5):
+        _cur = os.environ.get('PERL5LIB', '')
+        os.environ['PERL5LIB'] = (_perl5 + ':' + _cur) if _cur else _perl5
 
 # Resolve brainlife_utils — try local copy first, then parent monorepo
 app_dir = os.path.dirname(os.path.abspath(__file__))
@@ -181,14 +207,26 @@ add_info_to_product(report_items, f"Subject: {subject}", "info")
 # Requires FreeSurfer binaries (mkheadsurf). Skipped gracefully if unavailable.
 # mkheadsurf needs SUBJECTS_DIR in env (not just as a CLI arg).
 os.environ["SUBJECTS_DIR"] = subjects_dir
+add_info_to_product(
+    report_items,
+    f"FreeSurfer env: FREESURFER_HOME={os.environ.get('FREESURFER_HOME','unset')} "
+    f"MNI_DIR={os.environ.get('MNI_DIR','unset')} "
+    f"SUBJECTS_DIR={os.environ.get('SUBJECTS_DIR','unset')}",
+    "info"
+)
 try:
     mne.bem.make_scalp_surfaces(subject, subjects_dir=subjects_dir,
                                 force=True, overwrite=True, no_decimate=True,
                                 verbose=True)
     add_info_to_product(report_items, "Scalp surface created (head-dense)", "info")
+except subprocess.CalledProcessError as e:
+    _stderr = (e.stderr or '').strip()[-500:]  # last 500 chars of stderr
+    add_info_to_product(report_items,
+                        f"mkheadsurf failed (exit {e.returncode}): {e.cmd}\n{_stderr}",
+                        "warning")
 except Exception as e:
     add_info_to_product(report_items,
-                        f"Scalp surface generation skipped (no FreeSurfer?): {e}", "warning")
+                        f"Scalp surface generation skipped: {e}", "warning")
 
 # == CHECK DIGITIZATION POINTS ==
 if not info['dig']:
