@@ -135,10 +135,24 @@ subject      = config.get('subject')
 
 if fs_path and os.path.isdir(fs_path):
     fs_path = os.path.abspath(fs_path)
-    if not subjects_dir:
-        subjects_dir = os.path.dirname(fs_path)
-    if not subject:
-        subject = os.path.basename(fs_path)
+    if not subjects_dir or not subject:
+        if os.path.isdir(os.path.join(fs_path, 'mri')):
+            # fs_path IS the FreeSurfer subject directory
+            subjects_dir = subjects_dir or os.path.dirname(fs_path)
+            subject = subject or os.path.basename(fs_path)
+        else:
+            # fs_path is a container (neuro/freesurfer datatype dir) — find subject inside
+            _subdirs = sorted([
+                d for d in os.listdir(fs_path)
+                if os.path.isdir(os.path.join(fs_path, d, 'mri'))
+            ])
+            if _subdirs:
+                subjects_dir = subjects_dir or fs_path
+                subject = subject or _subdirs[0]
+            else:
+                # fallback: treat basename as subject
+                subjects_dir = subjects_dir or os.path.dirname(fs_path)
+                subject = subject or os.path.basename(fs_path)
 
 if not subjects_dir or not subject:
     add_info_to_product(
