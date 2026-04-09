@@ -102,7 +102,7 @@ config = {k.strip(): v for k, v in config.items()}  # strip tabs/spaces from key
 
 # == LOAD SENSOR DATA (for info + digitization) ==
 epochs_file = config.get('epochs') or config.get('epo') or None
-raw_file    = config.get('raw') or None
+raw_file = config.get('raw') or config.get('mne') or None
 
 try:
     if epochs_file and os.path.isfile(epochs_file):
